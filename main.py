@@ -1,26 +1,16 @@
-from mtranslate import translate
+import threading
 from PIL import Image as PILImage, ImageGrab, ImageTk
 from tkinter import *
 from tkinter import ttk
 
-import pytesseract
-
-# translation = translate("ちゃんとした人間なのかもしれねぇけど、あいつには欲望っていうもんがあってな", "en", "auto")
-# print(translation)
-# translatedText = translate("ちゃんとした人間にさえそういう願望があるもんだ", "en", "auto")
-# print(translatedText)
-
-# img_string = pytesseract.image_to_string('C:/users/drake/Desktop/image333.png', lang='jpn').replace(" ", "")
-# img_string = img_string.replace("\'", "\'")
-# img_string = img_string.replace("\n", "")
-# print(img_string)
-# translatedText = translate(img_string, "en", "auto")
-# print(translatedText)
-
-# evil globals
+from translate_loop import *
 
 # "defines"
 CAPTURE_PREVIEW_HEIGHT = 175
+
+# evil globals
+main_thread = threading.Thread(target=translate_loop_func, daemon=True)
+crop_max = [0, 0]
 
 # ttk interpreter and window setup
 root = Tk()
@@ -36,6 +26,8 @@ frm.grid(ipadx=90, ipady=60)
 capture = ImageGrab.grab(bbox=None, all_screens=True)
 capture.save(r"img/input/capture.png")
 ratio = capture.height/CAPTURE_PREVIEW_HEIGHT
+crop_max[0] = capture.width
+crop_max[1] = capture.height
 capture = capture.resize(size=[int(capture.width/ratio), int(capture.height/ratio)])
 capture_tk = ImageTk.PhotoImage(capture)
 
@@ -60,8 +52,18 @@ ttk.Label(frm, text="yoff").grid(column=1, row=crop_off_row)
 ttk.Entry(frm, textvariable=c_x_off).grid(column=0, row=crop_off_row+1)
 ttk.Entry(frm, textvariable=c_y_off).grid(column=1, row=crop_off_row+1)
 
-ttk.Button(frm, text="Confirm crop", command=root.destroy).grid(column=2, row=crop_row+1)
-ttk.Button(frm, text="Start Capture", command=root.destroy).grid(column=2, row=crop_row+2)
+def confirm_crop():
+    input = []
+    for s in [c_width, c_height, c_x_off, c_y_off]:
+        input.append(int(s.get()))
+    set_crop(input, crop_max)
+
+def start_translate_loop():
+    if not main_thread.is_alive():
+        main_thread.start()
+
+ttk.Button(frm, text="Confirm crop", command=confirm_crop).grid(column=2, row=crop_row+1)
+ttk.Button(frm, text="Start Capture", command=start_translate_loop).grid(column=2, row=crop_row+2)
 ttk.Button(frm, text="Exit program", command=root.destroy).grid(column=2, row=crop_row+3)
 
 root.mainloop()
