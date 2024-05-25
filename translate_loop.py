@@ -16,11 +16,18 @@ import pytesseract
 # translatedText = translate(img_string, "en", "auto")
 # print(translatedText)
 
-crop_vars = [0, 0, 0, 0]
+MIN_CROP_LENGTH = 10
 
+crop_vars = [0, 0, 0, 0]
 crop_lock = threading.Lock()
 
 def set_crop(input, maxes):
+    for i, e in enumerate(maxes):
+        input[i] = min(e, input[i])
+        input[i] = max(input[i], MIN_CROP_LENGTH)
+    input[2] = min(input[2], maxes[0]-input[0])
+    input[3] = min(input[3], maxes[1]-input[1])
+
     crop_lock.acquire()
     for i in range(len(crop_vars)):
         crop_vars[i] = input[i]
@@ -32,6 +39,8 @@ def get_crop():
     for i in range(len(crop_vars)):
         output[i] = crop_vars[i]
     crop_lock.release()
+
+    output[0], output[1], output[2], output[3] = output[2], output[3], output[0] + output[2], output[1] + output[3]
     return output
 
 def translate_loop_func():

@@ -1,12 +1,29 @@
 import threading
-from PIL import Image as PILImage, ImageGrab, ImageTk
+from PIL import Image as PILImage, ImageGrab, ImageTk, ImageFilter, ImageDraw
 from tkinter import *
 from tkinter import ttk
 
 from translate_loop import *
 
+
+# import numpy as np
+# import matplotlib.pylab as plt
+# from skimage.io import imread, imsave
+# from skimage.filters import unsharp_mask
+
+# im = imread(r"C:/users/drake/desktop/image.png")
+# im2 = unsharp_mask(im, radius=10, amount=10)
+
+# plt.figure(figsize=(20,7))
+# plt.subplot(131), plt.imshow(im), plt.axis('off')
+# plt.subplot(132), plt.imshow(im2), plt.axis('off')
+# plt.show()
+
+
+
 # "defines"
-CAPTURE_PREVIEW_HEIGHT = 175
+CAPTURE_PREVIEW_HEIGHT = 300
+BUTTON_SIZE_PX = 20
 
 # evil globals
 main_thread = threading.Thread(target=translate_loop_func, daemon=True)
@@ -24,17 +41,19 @@ frm.grid(ipadx=90, ipady=60)
 
 # get initial screenshot
 capture = ImageGrab.grab(bbox=None, all_screens=True)
-capture.save(r"img/input/capture.png")
 ratio = capture.height/CAPTURE_PREVIEW_HEIGHT
 crop_max[0] = capture.width
 crop_max[1] = capture.height
 capture = capture.resize(size=[int(capture.width/ratio), int(capture.height/ratio)])
+d_capture = ImageDraw.Draw(capture)
+d_capture.rectangle([0, 0, capture.width, capture.height], outline="red", width=4)
 capture_tk = ImageTk.PhotoImage(capture)
 
 # gui (got bored figuring out alignment, no resizing for you!) definitely breaks with many monitors, etc.
 preview_row = 0
 ttk.Label(frm, text="Capture area preview", font=("Arial", "15", "bold")).grid(column=0, row=preview_row)
-ttk.Label(frm, image=capture_tk).grid(column=0, row=preview_row+1, columnspan=10)
+preview = ttk.Label(frm, image=capture_tk)
+preview.grid(column=0, row=preview_row+1, columnspan=10)
 
 crop_row = preview_row + 2
 ttk.Label(frm, text="Cropping", font=("Arial", "15", "bold")).grid(column=0, row=crop_row)
@@ -55,15 +74,40 @@ ttk.Entry(frm, textvariable=c_y_off).grid(column=1, row=crop_off_row+1)
 def confirm_crop():
     input = []
     for s in [c_width, c_height, c_x_off, c_y_off]:
-        input.append(int(s.get()))
+        input.append(int(s.get() if s.get() else 0))
     set_crop(input, crop_max)
+
+    global capture_tk
+    capture = ImageGrab.grab(bbox=None, all_screens=True)
+    d_capture = ImageDraw.Draw(capture)
+
+    crop = get_crop()
+    d_capture.rectangle(crop, outline="red", width=2)
+    capture = capture.resize(size=[int(capture.width/ratio), int(capture.height/ratio)])
+    capture_tk = ImageTk.PhotoImage(capture)
+    preview.configure(image=capture_tk)
+
 
 def start_translate_loop():
     if not main_thread.is_alive():
         main_thread.start()
 
-ttk.Button(frm, text="Confirm crop", command=confirm_crop).grid(column=2, row=crop_row+1)
-ttk.Button(frm, text="Start Capture", command=start_translate_loop).grid(column=2, row=crop_row+2)
-ttk.Button(frm, text="Exit program", command=root.destroy).grid(column=2, row=crop_row+3)
+ttk.Button(frm, text="Confirm crop", width=BUTTON_SIZE_PX, command=confirm_crop).grid(column=2, row=crop_row+1)
+ttk.Button(frm, text="Start Capture", width=BUTTON_SIZE_PX, command=start_translate_loop).grid(column=2, row=crop_row+2)
+ttk.Button(frm, text="Exit program", width=BUTTON_SIZE_PX, command=root.destroy).grid(column=2, row=crop_row+3)
+
+im = PILImage.open(r"C:/users/drake/desktop/image11.png")
+im2 = im.filter(ImageFilter.UnsharpMask(radius=50, percent=10000, threshold=50)).convert('L')
+for i in range(im2.height):
+    for j in range(im2.width):
+        p = im2.getpixel([j, i])
+        if p < 250:
+            im2.putpixel([j, i], 0)
+
+# im2.show()
+
+import pytesseract
+img_string = pytesseract.image_to_string(im2, lang='jpn').replace(" ", "")
+print(img_string)
 
 root.mainloop()
