@@ -22,12 +22,15 @@ class Monitor:
         i_o = ImageTk.PhotoImage(i_p)
         self.root.wm_iconphoto(True, i_o)
         self.root.title("screen-translator")
+
+        self.main_frame = tk.Frame(root, bg="white")
+        self.main_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
         # Get monitor info
         self.monitors = get_monitors()
         self.selected_monitor = None
 
-        self.preview_label = tk.Label(root, text="Capture area preview", font=("Arial", "15", "bold"))
+        self.preview_label = tk.Label(self.main_frame, text="Capture area preview", font=("Arial", "12", "bold"))
         self.preview_label.pack()
 
         # threading
@@ -35,19 +38,15 @@ class Monitor:
         
         # dropdown to select the monitor
         self.monitor_var = tk.StringVar()
-        self.monitor_dropdown = ttk.Combobox(root, textvariable=self.monitor_var, state="readonly")
+        self.monitor_dropdown = ttk.Combobox(self.main_frame, textvariable=self.monitor_var, state="readonly")
         self.monitor_dropdown['values'] = [f"Monitor {i + 1}: {m.width}x{m.height}" for i, m in enumerate(self.monitors)]
         self.monitor_dropdown.current(0)
         self.monitor_dropdown.pack(pady=10)
         self.monitor_dropdown.bind("<<ComboboxSelected>>", self.load_monitor_preview)
         
         # canvas to display the monitor preview and the red box
-        self.canvas = tk.Canvas(root, bg="black")
+        self.canvas = tk.Canvas(self.main_frame, bg="black")
         self.canvas.pack(fill=tk.BOTH, expand=True)
-
-        # chat box
-        self.chat_frame = tk.Frame(root, bg="white")
-        self.chat_frame.pack(side=tk.RIGHT, fill=tk.BOTH,)
 
         # default red box
         self.box = None
@@ -65,13 +64,48 @@ class Monitor:
         self.canvas.bind("<ButtonRelease-1>", self.stop_move_or_resize)
         self.canvas.bind("<Motion>", self.change_cursor)
 
+        # chat frame
+        self.chat_frame = tk.Frame(root, width=300, bg="#e0e0e0")
+        self.chat_frame.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.sample_message_button = tk.Button(self.chat_frame, text="Send Sample Message", command=self.send_sample_message)
+        self.sample_message_button.pack(pady=5)
+
+        # scrollable chat log area
+        self.chat_log_frame = tk.Frame(self.chat_frame)
+        self.chat_log_frame.pack(fill=tk.BOTH, expand=True, padx=10)
+        self.chat_canvas = tk.Canvas(self.chat_log_frame, bg="#f0f0f0", highlightthickness=0)
+        self.chat_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # scrollbar for chat log
+        self.scrollbar = ttk.Scrollbar(self.chat_log_frame, orient="vertical", command=self.chat_canvas.yview)
+        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.chat_canvas.configure(yscrollcommand=self.scrollbar.set)
+        self.chat_canvas.bind('<Configure>', self.update_scroll_region)
+
+        # message frame
+        self.chat_log_inner = tk.Frame(self.chat_canvas, bg="#f0f0f0")
+        self.chat_canvas.create_window((5, 0), window=self.chat_log_inner, anchor="nw", width=self.chat_canvas.winfo_width())
+        self.chat_canvas.bind_all("<MouseWheel>", self.on_mouse_wheel)
+
+        self.message_entry = tk.Entry(self.chat_frame, width=25)
+        self.message_entry.pack(pady=5)
+        self.message_entry.bind("<Return>", self.send_message)
+
+        self.messages = []
+        self.max_messages = 50
+        self.last_message_frame = None
+
+        self.update_scroll_region()  # Ensure scroll region is updated initially
+
     def load_monitor_preview(self, event=None):
         monitor_idx = self.monitor_dropdown.current()
         self.selected_monitor = self.monitors[monitor_idx]
         monitor_img = ImageGrab.grab(bbox=(self.selected_monitor.x, self.selected_monitor.y, 
                                            self.selected_monitor.width + self.selected_monitor.x, 
                                            self.selected_monitor.height + self.selected_monitor.y), all_screens=True)
-        monitor_img.thumbnail((1000, 600))  # Scale down preview for GUI
+        monitor_img.thumbnail((800, 480))  # Scale down preview for GUI
         self.monitor_preview = ImageTk.PhotoImage(monitor_img)
 
         # clear the canvas and draw the new preview
@@ -204,11 +238,51 @@ class Monitor:
             o[i] = int(float(e)/m3[i%2] * m2[i%2]) + m1[i%2]
 
         return o
+    
+    def update_scroll_region(self, event=None):
+        self.chat_canvas.configure(scrollregion=self.chat_canvas.bbox("all"))
+        self.chat_canvas.itemconfig(self.chat_canvas.create_window((5, 0), window=self.chat_log_inner), width=self.chat_canvas.winfo_width())
 
+    def send_sample_message(self):
+        self.add_message("Sample message")
+
+    def send_message(self, event=None):
+        message = self.message_entry.get().strip()
+        if message:
+            self.add_message(message)
+            self.message_entry.delete(0, tk.END)
+
+    def add_message(self, message):
+        if len(self.messages) >= self.max_messages:
+            oldest_message_frame = self.messages.pop(0)
+            oldest_message_frame.pack_forget()
+
+        message_frame = tk.Frame(self.chat_log_inner, bg="#ffffff", bd=1, relief="solid")
+        message_frame.pack(fill=tk.X, pady=5)
+
+        message_label = tk.Label(message_frame, text=message, anchor="w", justify="left", bg="#ffffff", padx=5, pady=10, wraplength=self.chat_canvas.winfo_width()-10)
+        message_label.pack(fill=tk.X)
+
+        self.messages.append(message_frame)
+        self.highlight_recent_message(message_frame)
+        self.chat_log_inner.update_idletasks()
+
+        self.update_scroll_region()
+        self.chat_canvas.update_idletasks()
+        self.chat_canvas.yview_moveto(1)
+
+    def highlight_recent_message(self, message_frame):
+        if self.last_message_frame:
+            self.last_message_frame.winfo_children()[0].config(bg="#ffffff")
+        message_frame.winfo_children()[0].config(bg="#d8d8d8")
+        self.last_message_frame = message_frame
+
+    def on_mouse_wheel(self, event):
+        self.chat_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
 
 if __name__ == "__main__":
     root = tk.Tk()
     app = Monitor(root)
-    root.geometry("1005x638")
+    root.geometry("1218x520")
 
     root.mainloop()
