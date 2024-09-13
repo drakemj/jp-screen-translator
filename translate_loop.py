@@ -5,7 +5,7 @@ import pytesseract
 import difflib
 
 from processing import *
-from main import Monitor
+from screen_translator import *
 
 TRANSLATE_DEBUG = 0
 

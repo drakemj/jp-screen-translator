@@ -15,10 +15,22 @@ MIN_IMAGE_COLORVAL = 0
 MAX_IMAGE_COLORVAL = 255
 PREVIEW_RECT_WIDTH = 2
 
+import os
+import sys
+
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except AttributeError:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
 class Monitor:
     def __init__(self, root):
         self.root = root
-        i_p = PILImage.open(r"img/icon.png")
+        icon_path = resource_path("img/icon.png")
+        i_p = PILImage.open(icon_path)
         i_o = ImageTk.PhotoImage(i_p)
         self.root.wm_iconphoto(True, i_o)
         self.root.title("screen-translator")
