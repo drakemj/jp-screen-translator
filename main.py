@@ -34,7 +34,7 @@ class Monitor:
         self.preview_label.pack()
 
         # threading
-        self.main_thread = threading.Thread(target=translate_loop_func, daemon=True)
+        self.main_thread = threading.Thread(target=translate_loop_func, daemon=True, args=(self,))
         
         # dropdown to select the monitor
         self.monitor_var = tk.StringVar()
@@ -68,8 +68,14 @@ class Monitor:
         self.chat_frame = tk.Frame(root, width=300, bg="#e0e0e0")
         self.chat_frame.pack(side=tk.RIGHT, fill=tk.Y)
 
-        self.sample_message_button = tk.Button(self.chat_frame, text="Send Sample Message", command=self.send_sample_message)
-        self.sample_message_button.pack(pady=5)
+        self.button_frame = tk.Frame(self.chat_frame, bg="#e0e0e0")
+        self.button_frame.pack()
+
+        self.start_thread_button = tk.Button(self.button_frame, text="Start translating", command=self.start_main_thread)
+        self.start_thread_button.pack(side=LEFT, pady=5)
+
+        self.stop_thread_button = tk.Button(self.button_frame, text="Stop translating", command=stop_running)
+        self.stop_thread_button.pack(side=LEFT, pady=5, padx=20)
 
         # scrollable chat log area
         self.chat_log_frame = tk.Frame(self.chat_frame)
@@ -88,10 +94,6 @@ class Monitor:
         self.chat_log_inner = tk.Frame(self.chat_canvas, bg="#f0f0f0")
         self.chat_canvas.create_window((5, 0), window=self.chat_log_inner, anchor="nw", width=self.chat_canvas.winfo_width())
         self.chat_canvas.bind_all("<MouseWheel>", self.on_mouse_wheel)
-
-        self.message_entry = tk.Entry(self.chat_frame, width=25)
-        self.message_entry.pack(pady=5)
-        self.message_entry.bind("<Return>", self.send_message)
 
         self.messages = []
         self.max_messages = 50
@@ -117,6 +119,7 @@ class Monitor:
         self.red_box_y0 = 50
         self.red_box_x1 = 400
         self.red_box_y1 = 300
+        set_crop(self.get_red_box_dimensions())
         
         self.red_box_id = self.canvas.create_rectangle(self.red_box_x0, self.red_box_y0, 
                                                        self.red_box_x1, self.red_box_y1, outline="red", width=2)
@@ -243,14 +246,11 @@ class Monitor:
         self.chat_canvas.configure(scrollregion=self.chat_canvas.bbox("all"))
         self.chat_canvas.itemconfig(self.chat_canvas.create_window((5, 0), window=self.chat_log_inner), width=self.chat_canvas.winfo_width())
 
-    def send_sample_message(self):
-        self.add_message("Sample message")
-
-    def send_message(self, event=None):
-        message = self.message_entry.get().strip()
-        if message:
-            self.add_message(message)
-            self.message_entry.delete(0, tk.END)
+    def start_main_thread(self):
+        if not self.main_thread.is_alive():
+            self.main_thread.start()
+        else:
+            resume_running()
 
     def add_message(self, message):
         if len(self.messages) >= self.max_messages:
